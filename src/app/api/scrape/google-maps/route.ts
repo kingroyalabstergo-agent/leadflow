@@ -11,27 +11,16 @@ const supabase = createClient(
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY || ""
 
 // Search queries targeting import/export companies in Spain
+// Keep queries small to fit in Vercel's 10s timeout
 const SEARCH_QUERIES = [
-  // Import/Export by country
   { query: "empresa importadora china Barcelona", currency: "CNY", country: "china" },
   { query: "empresa importadora china Madrid", currency: "CNY", country: "china" },
-  { query: "empresa importadora china Valencia", currency: "CNY", country: "china" },
   { query: "importador productos turcos España", currency: "TRY", country: "turkey" },
-  { query: "empresa importadora India Barcelona", currency: "INR", country: "india" },
-  { query: "empresa importadora India Madrid", currency: "INR", country: "india" },
+  { query: "empresa importadora India España", currency: "INR", country: "india" },
   { query: "empresa exportadora USA España", currency: "USD", country: "usa" },
   { query: "comercio internacional empresa Barcelona", currency: "USD", country: "international" },
-  { query: "comercio internacional empresa Madrid", currency: "USD", country: "international" },
   { query: "distribuidor productos asiáticos España", currency: "CNY", country: "china" },
-  { query: "agente de aduanas Barcelona", currency: "USD", country: "international" },
-  { query: "transitario comercio exterior Madrid", currency: "USD", country: "international" },
-  { query: "empresa textil importación china Barcelona", currency: "CNY", country: "china" },
-  { query: "importador electrónica china Madrid", currency: "CNY", country: "china" },
-  { query: "empresa exportadora Marruecos España", currency: "MAD", country: "morocco" },
-  // SaaS / Tech companies (likely paying in USD)
-  { query: "startup tecnología SaaS Barcelona", currency: "USD", country: "saas" },
-  { query: "empresa software Barcelona", currency: "USD", country: "saas" },
-  { query: "startup SaaS Madrid", currency: "USD", country: "saas" },
+  { query: "startup SaaS Barcelona empresa software", currency: "USD", country: "saas" },
 ]
 
 async function searchPlaces(query: string): Promise<any[]> {

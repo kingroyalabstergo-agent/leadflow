@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/api/scrape/**/*.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/enrich/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
