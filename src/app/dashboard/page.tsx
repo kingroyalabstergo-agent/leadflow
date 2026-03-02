@@ -65,9 +65,17 @@ export default function DashboardPage() {
   const prevCount = useRef(0);
 
   const fetchLeads = useCallback(async () => {
-    const res = await fetch("/api/leads?limit=500");
-    const data = await res.json();
-    const all = data.leads ?? [];
+    let all: Lead[] = [];
+    let offset = 0;
+    const batchSize = 1000;
+    while (true) {
+      const res = await fetch(`/api/leads?limit=${batchSize}&offset=${offset}`);
+      const data = await res.json();
+      const batch = data.leads ?? [];
+      all = [...all, ...batch];
+      if (batch.length < batchSize) break;
+      offset += batchSize;
+    }
     setLeads(all);
     if (prevCount.current > 0 && all.length > prevCount.current) {
       setNewCount(n => n + (all.length - prevCount.current));
