@@ -12,12 +12,20 @@ interface ScrapeJob {
 }
 
 const SOURCES = [
-  { id: "camara-comercio", name: "🏛️ Cámara de Comercio — Big (>€1M)", endpoint: "/api/scrape/camara-comercio", desc: "China, India, Turkey, USA, UK + 5 more" },
-  { id: "camara-comercio-sme", name: "🏢 Cámara SMEs (€100K-€1M)", endpoint: "/api/scrape/camara-comercio-sme", desc: "Smaller companies, top 4 countries" },
-  { id: "google-maps", name: "📍 Google Maps", endpoint: "/api/scrape/google-maps", desc: "Import/export companies, distributors, agents" },
-  { id: "google-search", name: "🔍 Google Search", endpoint: "/api/scrape/google-search", desc: "Companies, SaaS, trade fairs via Google" },
+  // Per-country scrapers (fast, one HTTP call each)
+  { id: "camara-china", name: "🇨🇳 China (>€1M)", endpoint: "/api/scrape/camara-china", desc: "592 companies trading with China" },
+  { id: "camara-india", name: "🇮🇳 India (>€1M)", endpoint: "/api/scrape/camara-india", desc: "280 companies trading with India" },
+  { id: "camara-turkey", name: "🇹🇷 Turkey (>€1M)", endpoint: "/api/scrape/camara-turkey", desc: "373 companies trading with Turkey" },
+  { id: "camara-usa", name: "🇺🇸 USA (>€1M)", endpoint: "/api/scrape/camara-usa", desc: "648 companies trading with USA" },
+  { id: "camara-uk", name: "🇬🇧 UK (>€1M)", endpoint: "/api/scrape/camara-uk", desc: "821 companies trading with UK" },
+  { id: "camara-japan", name: "🇯🇵 Japan (>€1M)", endpoint: "/api/scrape/camara-japan", desc: "153 companies trading with Japan" },
+  { id: "camara-brazil", name: "🇧🇷 Brazil (>€1M)", endpoint: "/api/scrape/camara-brazil", desc: "125 companies trading with Brazil" },
+  // Google
+  { id: "google-maps", name: "📍 Google Maps", endpoint: "/api/scrape/google-maps", desc: "Import/export companies + phone numbers" },
+  { id: "google-search", name: "🔍 Google Search", endpoint: "/api/scrape/google-search", desc: "Companies, SaaS, Bubble.io, trade fairs" },
+  // Other
   { id: "icex-exporters", name: "🇪🇸 ICEX Exporters", endpoint: "/api/scrape/icex-exporters", desc: "Major Spanish exporters" },
-  { id: "trade-fairs", name: "🏭 Trade Sectors", endpoint: "/api/scrape/trade-fairs", desc: "Machinery, electronics, plastics, vehicles" },
+  { id: "trade-fairs", name: "🏭 Trade Sectors", endpoint: "/api/scrape/trade-fairs", desc: "Machinery & electronics sectors" },
 ];
 
 export default function ScrapePage() {

@@ -35,93 +35,83 @@ function extractCompanies(html: string): string[] {
   return companies
 }
 
-// Single country scraper — fast enough for Vercel's 10s limit
-async function scrapeCountry(countryName: string, code: string, currency: string, tramo: string): Promise<any[]> {
-  const leads: any[] = []
-  const url = `http://directorio.camaras.org/index.php?pagina=1&registros=0&offset=0&cocin=&impexp=EI&anno=23&tramo=${tramo}&nombre=&producto=&areanacional=&codarea=&areainternac=PS&codareainter=${code}`
-  
-  const html = await fetchPage(url)
-  const companies = extractCompanies(html)
-  
-  for (const company of companies) {
-    leads.push({
-      company_name: company,
-      country: "Spain",
-      currencies_used: ["EUR", currency],
-      industry: `Import/Export (${countryName})`,
-      source: tramo === "03" ? "camara-comercio" : "camara-comercio-sme",
-      notes: `Trades with ${countryName} (${currency}). ${tramo === "03" ? ">€1M" : "€100K-€1M"} annual trade. Source: Cámara de Comercio.`,
+async function insertLeads(rawLeads: any[], source: string): Promise<{ inserted: number; total: number }> {
+  let inserted = 0
+  for (const lead of rawLeads) {
+    const { data: existing } = await supabase
+      .from("leads").select("id").eq("company_name", lead.company_name).maybeSingle()
+    if (existing) continue
+    const score = calculateScore(lead)
+    const { error } = await supabase.from("leads").insert({
+      ...lead, score, status: "new",
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     })
+    if (!error) inserted++
   }
-
-  // Page 2 if time allows
-  const url2 = url.replace("pagina=1", "pagina=2").replace("offset=0", "offset=25")
-  const html2 = await fetchPage(url2)
-  const companies2 = extractCompanies(html2)
-  for (const company of companies2) {
-    leads.push({
-      company_name: company,
-      country: "Spain",
-      currencies_used: ["EUR", currency],
-      industry: `Import/Export (${countryName})`,
-      source: tramo === "03" ? "camara-comercio" : "camara-comercio-sme",
-      notes: `Trades with ${countryName} (${currency}). ${tramo === "03" ? ">€1M" : "€100K-€1M"} annual trade. Source: Cámara de Comercio.`,
-    })
-  }
-
-  return leads
+  return { inserted, total: rawLeads.length }
 }
 
-// Scrape ALL countries in sequence (2 pages each = ~14 requests, should fit in ~8s)
-async function scrapeAllCountries(tramo: string): Promise<any[]> {
-  const all: any[] = []
-  for (const [name, { code, currency }] of Object.entries(TARGET_COUNTRIES)) {
-    const leads = await scrapeCountry(name, code, currency, tramo)
-    all.push(...leads)
+// Each source scrapes just ONE country or ONE thing — fits in 10s
+const scrapers: Record<string, () => Promise<any[]>> = {}
+
+// Generate per-country scrapers
+for (const [name, { code, currency }] of Object.entries(TARGET_COUNTRIES)) {
+  // Big companies (>€1M)
+  scrapers[`camara-${name}`] = async () => {
+    const url = `http://directorio.camaras.org/index.php?pagina=1&registros=0&offset=0&cocin=&impexp=EI&anno=23&tramo=03&nombre=&producto=&areanacional=&codarea=&areainternac=PS&codareainter=${code}`
+    const html = await fetchPage(url)
+    return extractCompanies(html).map(c => ({
+      company_name: c, country: "Spain", currencies_used: ["EUR", currency],
+      industry: `Import/Export (${name})`, source: `camara-${name}`,
+      notes: `Trades with ${name} (${currency}). >€1M annual trade. Cámara de Comercio.`,
+    }))
   }
-  return all
+  // SME companies (€100K-€1M)
+  scrapers[`camara-${name}-sme`] = async () => {
+    const url = `http://directorio.camaras.org/index.php?pagina=1&registros=0&offset=0&cocin=&impexp=EI&anno=23&tramo=02&nombre=&producto=&areanacional=&codarea=&areainternac=PS&codareainter=${code}`
+    const html = await fetchPage(url)
+    return extractCompanies(html).map(c => ({
+      company_name: c, country: "Spain", currencies_used: ["EUR", currency],
+      industry: `Import/Export (${name})`, source: `camara-${name}-sme`,
+      notes: `Trades with ${name} (${currency}). €100K-€1M annual trade. Cámara de Comercio.`,
+    }))
+  }
 }
 
-async function scrapeICEX(): Promise<any[]> {
-  const leads: any[] = []
+// ICEX exporters
+scrapers["icex-exporters"] = async () => {
   const url = `http://directorio.camaras.org/index.php?pagina=1&registros=0&offset=0&cocin=&impexp=E&anno=23&tramo=03&nombre=&producto=&areanacional=&codarea=&areainternac=&codareainter=`
   const html = await fetchPage(url)
-  for (const company of extractCompanies(html)) {
-    leads.push({
-      company_name: company, country: "Spain", currencies_used: ["EUR"],
-      industry: "Exporter", source: "icex-exporters",
-      notes: "Major Spanish exporter (>€1M). Source: Cámara de Comercio/ICEX.",
-    })
-  }
-  return leads
+  return extractCompanies(html).map(c => ({
+    company_name: c, country: "Spain", currencies_used: ["EUR"],
+    industry: "Exporter", source: "icex-exporters",
+    notes: "Major Spanish exporter (>€1M). Cámara de Comercio/ICEX.",
+  }))
 }
 
-async function scrapeTradeSectors(): Promise<any[]> {
+// Trade sectors
+scrapers["trade-fairs"] = async () => {
   const leads: any[] = []
-  const sectors = [
-    { producto: "84", name: "Machinery" },
-    { producto: "85", name: "Electronics" },
-    { producto: "39", name: "Plastics" },
-  ]
-  for (const sector of sectors) {
-    const url = `http://directorio.camaras.org/index.php?pagina=1&registros=0&offset=0&cocin=&impexp=EI&anno=23&tramo=03&nombre=&producto=${sector.producto}&areanacional=&codarea=&areainternac=&codareainter=`
+  for (const s of [{ p: "84", n: "Machinery" }, { p: "85", n: "Electronics" }]) {
+    const url = `http://directorio.camaras.org/index.php?pagina=1&registros=0&offset=0&cocin=&impexp=EI&anno=23&tramo=03&nombre=&producto=${s.p}&areanacional=&codarea=&areainternac=&codareainter=`
     const html = await fetchPage(url)
-    for (const company of extractCompanies(html)) {
-      leads.push({
-        company_name: company, country: "Spain", currencies_used: ["EUR", "USD"],
-        industry: sector.name, source: "trade-fairs",
-        notes: `${sector.name} sector, import+export >€1M.`,
-      })
-    }
+    leads.push(...extractCompanies(html).map(c => ({
+      company_name: c, country: "Spain", currencies_used: ["EUR", "USD"],
+      industry: s.n, source: "trade-fairs",
+      notes: `${s.n} sector, import+export >€1M.`,
+    })))
   }
   return leads
 }
 
-const scrapers: Record<string, () => Promise<any[]>> = {
-  "camara-comercio": () => scrapeAllCountries("03"),
-  "camara-comercio-sme": () => scrapeAllCountries("02"),
-  "icex-exporters": scrapeICEX,
-  "trade-fairs": scrapeTradeSectors,
+// Meta: run all country scrapers sequentially 
+scrapers["camara-all"] = async () => {
+  // This will likely timeout on Vercel free — use individual ones instead
+  const all: any[] = []
+  for (const name of Object.keys(TARGET_COUNTRIES)) {
+    all.push(...await scrapers[`camara-${name}`]())
+  }
+  return all
 }
 
 export async function POST(
@@ -132,7 +122,10 @@ export async function POST(
   const scraper = scrapers[source]
 
   if (!scraper) {
-    return NextResponse.json({ error: `Unknown source: ${source}` }, { status: 400 })
+    return NextResponse.json({ 
+      error: `Unknown source: ${source}`,
+      available: Object.keys(scrapers),
+    }, { status: 400 })
   }
 
   const { data: job } = await supabase
@@ -142,20 +135,7 @@ export async function POST(
 
   try {
     const rawLeads = await scraper()
-    let inserted = 0
-
-    for (const lead of rawLeads) {
-      const { data: existing } = await supabase
-        .from("leads").select("id").eq("company_name", lead.company_name).maybeSingle()
-      if (existing) continue
-
-      const score = calculateScore(lead)
-      const { error } = await supabase.from("leads").insert({
-        ...lead, score, status: "new",
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      })
-      if (!error) inserted++
-    }
+    const { inserted } = await insertLeads(rawLeads, source)
 
     await supabase.from("scrape_jobs").update({
       status: "completed", leads_found: inserted, completed_at: new Date().toISOString(),
