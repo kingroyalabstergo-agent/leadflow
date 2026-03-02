@@ -42,9 +42,17 @@ function Dot({ status }: { status: string }) {
   return <span className={cn("inline-block w-1.5 h-1.5 rounded-full", S[status]?.dot || "bg-zinc-600")} />;
 }
 
-function Score({ score }: { score: number }) {
-  const c = score >= 50 ? "text-emerald-400" : score >= 30 ? "text-amber-400" : "text-zinc-500";
-  return <span className={cn("text-xs font-mono tabular-nums", c)}>{score}</span>;
+function ScoreBar({ score }: { score: number }) {
+  const pct = Math.min(100, score);
+  const color = score >= 50 ? "bg-emerald-500" : score >= 25 ? "bg-amber-500" : "bg-red-500";
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-14 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+        <div className={cn("h-full rounded-full", color)} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-[10px] text-zinc-500 font-mono tabular-nums w-5">{score}</span>
+    </div>
+  );
 }
 
 export default function DashboardPage() {
@@ -70,7 +78,7 @@ export default function DashboardPage() {
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
-  // Realtime subscription
+  // Realtime
   useEffect(() => {
     const channel = supabase
       .channel("leads-realtime")
@@ -168,8 +176,11 @@ export default function DashboardPage() {
                 <tr className="text-zinc-600">
                   <th className="text-left py-2 px-3 font-medium w-8"></th>
                   <th className="text-left py-2 px-3 font-medium">Company</th>
+                  <th className="text-left py-2 px-3 font-medium">Source</th>
+                  <th className="text-left py-2 px-3 font-medium">Score</th>
                   <th className="text-left py-2 px-3 font-medium">Phone</th>
-                  <th className="text-left py-2 px-3 font-medium w-10">Score</th>
+                  <th className="text-left py-2 px-3 font-medium">Contact</th>
+                  <th className="text-left py-2 px-3 font-medium">Added</th>
                   <th className="text-left py-2 px-3 font-medium w-32"></th>
                 </tr>
               </thead>
@@ -182,15 +193,18 @@ export default function DashboardPage() {
                     )}>
                     <td className="py-2 px-3"><Dot status={lead.status} /></td>
                     <td className="py-2 px-3">
-                      <span className="font-medium text-zinc-200">{lead.company_name}</span>
-                      {lead.industry && <span className="ml-2 text-zinc-600">{lead.industry}</span>}
+                      <div className="font-medium text-zinc-200">{lead.company_name}</div>
+                      {lead.industry && <div className="text-zinc-600 text-[10px]">{lead.industry}</div>}
                     </td>
+                    <td className="py-2 px-3 text-zinc-500">{lead.source || "—"}</td>
+                    <td className="py-2 px-3"><ScoreBar score={lead.score} /></td>
                     <td className="py-2 px-3">
                       {lead.phone ? (
                         <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} className="text-zinc-400 hover:text-blue-400 font-mono transition-colors">{lead.phone}</a>
                       ) : <span className="text-zinc-700">—</span>}
                     </td>
-                    <td className="py-2 px-3"><Score score={lead.score} /></td>
+                    <td className="py-2 px-3 text-zinc-500">{lead.email || lead.ceo_name || "—"}</td>
+                    <td className="py-2 px-3 text-zinc-600">{new Date(lead.created_at).toLocaleDateString()}</td>
                     <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
                       <div className="flex gap-0.5">
                         {lead.status === "new" && <>
@@ -204,7 +218,7 @@ export default function DashboardPage() {
                         {lead.status === "interested" && <>
                           <button onClick={() => setStatus(lead.id, "closed")} className="px-1.5 py-0.5 rounded text-[10px] text-violet-400/70 hover:bg-violet-500/10 transition-colors">closed</button>
                         </>}
-                        {(lead.status === "rejected" || lead.status === "closed") && 
+                        {(lead.status === "rejected" || lead.status === "closed") &&
                           <button onClick={() => setStatus(lead.id, "new")} className="px-1.5 py-0.5 rounded text-[10px] text-zinc-600 hover:bg-zinc-800 transition-colors">reopen</button>
                         }
                       </div>
@@ -227,12 +241,11 @@ export default function DashboardPage() {
                 {selected.website && <a href={selected.website.startsWith("http") ? selected.website : `https://${selected.website}`} target="_blank" className="text-[10px] text-zinc-500 hover:text-blue-400 transition-colors">{selected.website}</a>}
               </div>
               <div className="flex items-center gap-3">
-                <Score score={selected.score} />
+                <ScoreBar score={selected.score} />
                 <button onClick={() => setSelected(null)} className="text-zinc-600 hover:text-zinc-300 text-sm">×</button>
               </div>
             </div>
 
-            {/* Contact */}
             {(selected.phone || selected.email || selected.ceo_name) && (
               <div className="space-y-1.5 text-xs">
                 {selected.phone && <div className="flex items-center gap-2"><span className="text-zinc-600 w-10">tel</span><a href={`tel:${selected.phone}`} className="text-zinc-300 hover:text-blue-400 font-mono transition-colors">{selected.phone}</a></div>}
@@ -242,7 +255,6 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Meta */}
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-zinc-500">
               {selected.industry && <span>{selected.industry}</span>}
               {selected.source && <span>{selected.source}</span>}
@@ -251,7 +263,6 @@ export default function DashboardPage() {
 
             {selected.notes && <p className="text-[11px] text-zinc-500 leading-relaxed">{selected.notes}</p>}
 
-            {/* Status */}
             <div className="flex gap-1">
               {["new", "contacted", "interested", "rejected", "closed"].map(s => (
                 <button key={s} onClick={() => setStatus(selected.id, s)}
