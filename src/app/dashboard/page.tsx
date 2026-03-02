@@ -112,6 +112,11 @@ export default function DashboardPage() {
     if (selected?.id === id) setSelected(s => s ? { ...s, status } : s);
   };
 
+  const [page, setPage] = useState(0);
+  const perPage = 50;
+  const totalPages = Math.ceil(filtered.length / perPage);
+  const paged = filtered.slice(page * perPage, (page + 1) * perPage);
+
   const counts = {
     total: leads.length,
     new: leads.filter(l => l.status === "new").length,
@@ -169,10 +174,9 @@ export default function DashboardPage() {
 
       {/* Table */}
       {loading ? <div className="text-center py-12 text-zinc-600 text-sm">Loading...</div> : (
-        <div className="border border-zinc-800/50 rounded-lg overflow-hidden">
-          <div className="overflow-auto max-h-[calc(100vh-260px)]">
+        <div className="overflow-auto max-h-[calc(100vh-260px)]">
             <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-zinc-950 border-b border-zinc-800/50">
+              <thead className="sticky top-0 bg-zinc-950/80 backdrop-blur-sm border-b border-zinc-800/30">
                 <tr className="text-zinc-600">
                   <th className="text-left py-2 px-3 font-medium w-8"></th>
                   <th className="text-left py-2 px-3 font-medium">Company</th>
@@ -185,7 +189,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(lead => (
+                {paged.map(lead => (
                   <tr key={lead.id} onClick={() => setSelected(lead)}
                     className={cn("border-b border-zinc-800/30 cursor-pointer transition-colors",
                       selected?.id === lead.id ? "bg-zinc-800/40" : "hover:bg-zinc-900/50",
@@ -227,6 +231,18 @@ export default function DashboardPage() {
                 ))}
               </tbody>
             </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-1">
+          <span>{filtered.length} leads · page {page + 1}/{totalPages}</span>
+          <div className="flex gap-1">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+              className="px-2 py-1 rounded hover:bg-zinc-800 disabled:opacity-20 transition-colors">← prev</button>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+              className="px-2 py-1 rounded hover:bg-zinc-800 disabled:opacity-20 transition-colors">next →</button>
           </div>
         </div>
       )}
