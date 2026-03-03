@@ -112,7 +112,7 @@ export default function DashboardPage() {
       return l.company_name.toLowerCase().includes(q) || l.industry?.toLowerCase().includes(q) || l.phone?.includes(q) || l.email?.toLowerCase().includes(q);
     }
     return true;
-  }).sort((a, b) => b.score - a.score);
+  }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const setStatus = async (id: string, status: string) => {
     await fetch(`/api/leads/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
